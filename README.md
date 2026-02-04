@@ -8,59 +8,67 @@
 <a id="windows-installation"></a>
 ## 1. Installation of Zephyr project and SDK for Windows Operating System
 
-### Prerequisite required tools for Zephyr Setup on Windows Machine :
-- [Cmake](https://cmake.org/download/) 
-- Python 3.11
-- Download [Ninja](https://github.com/ninja-build/ninja/releases) and keep it in the Cywin bin path
-- 7z Install [7Zip](https://www.7-zip.org/download.html) tool and add to Environment Path
-- LinkServer (NXP flash tool) needs to be added to the Environment Path)
+This repo provides simple PowerShell scripts to set up Zephyr on Windows. Run scripts in order as Administrator.
 
-### Open Powershell as Administrator Run below command and powershell Script after installtion of prerequisite tools
-```bash
-$ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope LocalMachine
-$ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser
-$ PLATFORM_TOOLS     :   S:\platform_tools (On Environment variables add this)
-$ Setup_Zephyr_Project_SDK.ps1
-```
+### Prerequisites
+- Windows 10 or later
+- Internet connection
 
-### Powershell Commands to Setup the Zephyr Environment setup and Zephyr SDK
+### Step-by-Step Setup
 
-```bash
-## Python Environment Setup and Activation
-$ python -m venv zephyrEnv
-$ ./zephyrEnv/Script/activate
-$ pip install west
+1. **Install Dependencies**:
+   ```
+   .\install-deps.ps1
+   ```
+   This installs required tools using winget: CMake, Ninja, Gperf, Python 3.12, Git, DTC.
 
-## Initilize Zephyr Repository
-$ west init .ZephyrWorkspace
-$ cd .ZephyrWorkspace
+2. **Set Up Virtual Environment**:
+   ```
+   .\setup-venv.ps1
+   ```
+   Creates and activates a Python virtual environment named `zephyr-venv`.
 
-## Before west update edit `west.yml` for neccessary repositories  
-$ west update
-$ west zephyr-export
-$ west packages pip --install
-$ cd %HOMEPATH%\.ZephyrWorkspace\zephyr
+3. **Initialize West and Zephyr**:
+   ```
+   .\init-west.ps1
+   ```
+   Installs West, initializes workspace (`ZWS`), updates repos, exports CMake package, and installs Python deps.
 
-## Project creation by copy copying sample project template
-$ mkdir <Project-name>
-$ cd <Project-name>
-$ $env:ZEPHYR_BASE="S:\Zephyr-Source-Build\.ZephyrWorkspace\zephyr"
-$ Copy-Item -Recurse -Path $env:ZEPHYR_BASE\samples\philosophers\* -Destination .
+4. **Install Zephyr SDK**:
+   ```
+   .\install-sdk.ps1
+   ```
+   Installs the Zephyr SDK using West. The SDK is installed to `%USERPROFILE%\.local\zephyr-sdk\<version>` (e.g., `C:\Users\<username>\.local\zephyr-sdk\0.17.4`).
 
-## Build the project and Flash process
+5. **Build a Sample** (optional):
+   ```
+   cd ZWS
+   .\..\build-sample.ps1 -Sample zephyr/samples/basic/blinky
+   ```
+   Builds the blinky sample (copies to `..\blinky` by default).
+
+### Manual Fallback
+If scripts fail, follow the [official Zephyr guide](https://docs.zephyrproject.org/latest/develop/getting_started/index.html) for manual installation.
+
+### Notes
+- Activate the venv in each new session: `.\ZPE\Scripts\Activate.ps1`
+- For flashing: `west flash` (ensure board is connected).
+- Supported boards: Run `west boards` after setup.
 $ west boards  # to get list of boards
 $ west build -b <your-board-name> <project-dir> -t guiconfig
 $ west build -p always -b <your-board-name> <project-dir> --build-dir <build-dir>
 Eg: west build -p always -b mimxrt1170_evk@A/mimxrt1176/cm7 S:/Zephyr-Source-Build/Truesample --build-dir S:/Zephyr-Source-Build/Truesample/build -- -DDTC_OVERLAY_FILE="S:/Zephyr-Source-Build/Truesample/boards/<boardname>.overlay"
+For simulation on Windows: west build -b qemu_x86 zephyr/samples/basic/blinky
+For native_sim (Linux/WSL preferred): west build -b native_sim zephyr/samples/basic/blinky
 
 ## Linkserver installtion path should be added to Path Env
 $ west flash --build-dir <build-dir>
 $ west flash --runner jlink --build-dir ../../Truesample/build
 ```
-- ### Downlaod Zephyr SDK directly
-   [Downlaod Zephyr SDK](https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_windows-x86_64.7z)
+- ### Download Zephyr SDK directly
+   [Download Zephyr SDK](https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.4/zephyr-sdk-0.17.4_windows-x86_64.7z)
 - ### Keep the extract one into s:\platforms_tools\zephyr-sdk
-   $ 7z x zephyr-sdk-0.17.0_windows-x86_64.7z
+   $ 7z x zephyr-sdk-0.17.4_windows-x86_64.7z
 - ### Run setup.cmd to register Zephyr SDK path and access from anywhere
    $ setup.cmd
 
@@ -124,13 +132,13 @@ $ usbipd attach --wsl --busid=2-4
 
 # 7. Install Zephyr SDK following official docs
    $ cd ~
-   $ wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64.tar.xz
-   $ wget -O - https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/sha256.sum | shasum --check --ignore-missing
-   $ tar xvf zephyr-sdk-0.17.0_linux-x86_64.tar.xz
-   $ cd zephyr-sdk-0.17.0
+   $ wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.4/zephyr-sdk-0.17.4_linux-x86_64.tar.xz
+   $ wget -O - https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.4/sha256.sum | shasum --check --ignore-missing
+   $ tar xvf zephyr-sdk-0.17.4_linux-x86_64.tar.xz
+   $ cd zephyr-sdk-0.17.4
    $ ./setup.sh
 
-   $ sudo cp ~/zephyr-sdk-0.17.0/sysroots/x86_64-pokysdk-linux/usr/share/openocd/contrib/60-openocd.rules /etc/udev/rules.d
+   $ sudo cp ~/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/share/openocd/contrib/60-openocd.rules /etc/udev/rules.d
    $ sudo udevadm control --reload
 
 # 8. Verify installation
