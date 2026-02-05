@@ -51,6 +51,13 @@ cd ZWS
 - **Activate venv in each new session:** `.\ZPE\Scripts\Activate.ps1`
 - **Manual fallback:** Follow the [official Zephyr guide](https://docs.zephyrproject.org/latest/develop/getting_started/index.html)
 
+### VSCode and MCUExpresso Integration
+
+For development in VSCode with MCUExpresso IDE:
+
+- Use the same ZWS workspace and import the projects into MCUExpresso.
+- Ensure the `ZEPHYR_SDK_INSTALL_DIR` environment variable is set to your Zephyr SDK installation path, e.g., `C:\Users\%USERNAME%\zephyr-sdk-0.17.4`.
+
 ---
 
 <a id="linux-setup"></a>
