@@ -2,17 +2,17 @@
 # setup-venv.sh
 # Sets up Python virtual environment for Zephyr
 
-VENV_NAME=${1:-zephyr-venv}
-VENV_PATH="./$VENV_NAME"
+VenvName=${1:-ZPE}
+venvPath="../$VenvName"
 
-if [ ! -d "$VENV_PATH" ]; then
-    echo "Creating virtual environment at $VENV_PATH..."
-    python3 -m venv "$VENV_PATH"
+if [ ! -d "$venvPath" ]; then
+    echo "Creating virtual environment at $venvPath..."
+    python3 -m venv "$venvPath"
 else
-    echo "Virtual environment already exists at $VENV_PATH."
+    echo "Virtual environment already exists at $venvPath."
 fi
 
 echo "Activating virtual environment..."
-source "$VENV_PATH/bin/activate"
+source "$venvPath/bin/activate"
 
 echo "Virtual environment activated. Run 'deactivate' to exit."
