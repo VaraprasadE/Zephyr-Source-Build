@@ -2,17 +2,20 @@
 # init-west.sh
 # Initializes West workspace and installs Zephyr
 
-WORKSPACE_NAME=${1:-zephyr-workspace}
+WORKSPACE_NAME=${1:-ZWS}
+
+echo "Activating virtual environment..."
+source "../ZPE/bin/activate"
 
 # Assume venv is activated
 echo "Installing West..."
 pip install west
 
-WORKSPACE_PATH="./$WORKSPACE_NAME"
+WORKSPACE_PATH="../$WORKSPACE_NAME"
 
 if [ ! -d "$WORKSPACE_PATH" ]; then
     echo "Initializing West workspace..."
-    west init "$WORKSPACE_NAME"
+    west init "$WORKSPACE_PATH"
 else
     echo "West workspace already exists."
 fi
