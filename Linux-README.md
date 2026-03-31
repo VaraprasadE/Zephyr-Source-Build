@@ -122,18 +122,24 @@ west packages pip --install
 ### Step 7: Install Zephyr SDK
 
 ```bash
-cd ~
-wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.4/zephyr-sdk-0.17.4_linux-x86_64.tar.xz
-wget -O - https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.4/sha256.sum | shasum --check --ignore-missing
-tar xvf zephyr-sdk-0.17.4_linux-x86_64.tar.xz
-cd zephyr-sdk-0.17.4
-./setup.sh
+cd ~/ZWS/zephyr
+west sdk install
 ```
+
+Use `west sdk install` as the SDK installation method for this repo. If you previously installed an older SDK such as `0.17.4`, unset `ZEPHYR_SDK_INSTALL_DIR` so Zephyr can select the registered compatible SDK automatically.
 
 ### Step 8: Configure udev Rules (for USB debugging)
 
+Find the installed SDK path first:
+
 ```bash
-sudo cp ~/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/share/openocd/contrib/60-openocd.rules /etc/udev/rules.d
+west sdk list
+```
+
+Then replace `<sdk-path>` below with the `path:` value reported by `west sdk list`.
+
+```bash
+sudo cp <sdk-path>/hosttools/sysroots/x86_64-pokysdk-linux/usr/share/openocd/contrib/60-openocd.rules /etc/udev/rules.d
 sudo udevadm control --reload
 ```
 
