@@ -4,14 +4,15 @@
 
 WORKSPACE_NAME=${1:-ZWS}
 
+# 1. Activate virtual environment
 echo "Activating virtual environment..."
-source "../ZPE/bin/activate"
+# Use absolute path or ensure script is run from the correct root
+source "$(pwd)/ZPE/bin/activate"
 
-# Assume venv is activated
 echo "Installing West..."
 pip install west
 
-WORKSPACE_PATH="../$WORKSPACE_NAME"
+WORKSPACE_PATH="./$WORKSPACE_NAME"
 
 if [ ! -d "$WORKSPACE_PATH" ]; then
     echo "Initializing West workspace..."
@@ -28,7 +29,14 @@ west update
 echo "Exporting Zephyr CMake package..."
 west zephyr-export
 
-echo "Installing Python dependencies..."
+# --- THE FIX STARTS HERE ---
+echo "Installing Python dependencies via pip..."
+# We install from the requirements file directly to avoid the 'jsonschema' crash
+pip install -r zephyr/scripts/requirements.txt
+
+# Now that dependencies are met, this command will work without crashing
+echo "Finalizing packages..."
 west packages pip --install
+# --- THE FIX ENDS HERE ---
 
 echo "West setup complete."

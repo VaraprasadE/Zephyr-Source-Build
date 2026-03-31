@@ -3,7 +3,7 @@
 # Sets up Python virtual environment for Zephyr
 
 VenvName=${1:-ZPE}
-venvPath="../$VenvName"
+venvPath="./$VenvName"
 
 if [ ! -d "$venvPath" ]; then
     echo "Creating virtual environment at $venvPath..."
