@@ -7,8 +7,7 @@ A streamlined setup for building Zephyr RTOS projects on Windows and Linux.
 1. [Windows Setup](#windows-setup)
 2. [Linux/WSL Setup](#linux-setup)
 3. [Building and Flashing](#building-and-flashing)
-4. [Zephyr SDK Manual Installation](#sdk-manual-installation)
-5. [Zephyr West Project Components](#project-components)
+4. [Zephyr West Project Components](#project-components)
 
 ---
 
@@ -29,7 +28,7 @@ This repo provides PowerShell scripts to set up Zephyr on Windows. Run scripts i
 | 1    | `.\01-install-deps.ps1` | Installs required tools using winget: CMake, Ninja, Gperf, Python 3.12, Git, DTC |
 | 2    | `.\02-setup-venv.ps1`   | Creates and activates a Python virtual environment (`ZPE`)                  |
 | 3    | `.\03-init-west.ps1`    | Installs West, initializes workspace (`ZWS`), updates repos, exports CMake package |
-| 4    | `.\04-install-sdk.ps1`  | Installs Zephyr SDK to `%USERPROFILE%\.local\zephyr-sdk\<version>`          |
+| 4    | `.\04-install-sdk.ps1`  | Installs and registers the compatible Zephyr SDK via `west sdk install`     |
 | 5    | `.\05-build-sample.ps1` | (Optional) Builds a sample project                                          |
 
 ### Quick Start
@@ -49,23 +48,23 @@ cd ZWS
 ### Notes
 
 - **Activate venv in each new session:** `.\ZPE\Scripts\Activate.ps1`
-- **Manual fallback:** Follow the [official Zephyr guide](https://docs.zephyrproject.org/latest/develop/getting_started/index.html)
+- **SDK installs:** Use `.\04-install-sdk.ps1`, which runs `west sdk install` from `ZWS\zephyr`
 
 ### VSCode and MCUExpresso Integration
 
 For development in VSCode with MCUExpresso IDE:
 
 - Use the same ZWS workspace and import the projects into MCUExpresso.
-- Ensure the `ZEPHYR_SDK_INSTALL_DIR` environment variable is set to your Zephyr SDK installation path, e.g., `C:\Users\%USERNAME%\zephyr-sdk-0.17.4`.
+- Leave `ZEPHYR_SDK_INSTALL_DIR` unset unless you intentionally need to override Zephyr's SDK auto-detection.
 
 ---
 
 <a id="linux-setup"></a>
 ## 2. Linux/WSL Setup
 
-For Linux and WSL setup instructions, see **[linux-setup/README.md](linux-setup/README.md)**.
+For Linux and WSL setup instructions, see **[Linux-README.md](Linux-README.md)**.
 
-The `linux-setup` folder contains:
+The repo includes:
 
 | File               | Description                          |
 |--------------------|--------------------------------------|
@@ -129,34 +128,8 @@ west flash --runner jlink --build-dir <build-dir>
 
 ---
 
-<a id="sdk-manual-installation"></a>
-## 4. Zephyr SDK Manual Installation
-
-If automated scripts fail, install the SDK manually:
-
-### Windows
-
-1. **Download:** [zephyr-sdk-0.17.4_windows-x86_64.7z](https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.4/zephyr-sdk-0.17.4_windows-x86_64.7z)
-
-2. **Extract:**
-   ```powershell
-   7z x zephyr-sdk-0.17.4_windows-x86_64.7z
-   ```
-
-3. **Register SDK:**
-   ```powershell
-   cd zephyr-sdk-0.17.4
-   .\setup.cmd
-   ```
-
-### Linux
-
-See [linux-setup/README.md](linux-setup/README.md#zephyr-setup) for Linux SDK installation.
-
----
-
 <a id="project-components"></a>
-## 5. Zephyr West Project Components
+## 4. Zephyr West Project Components
 
 ### Simulation & Testing
 

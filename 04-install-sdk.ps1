@@ -1,8 +1,7 @@
 # install-sdk.ps1
-# Installs Zephyr SDK
+# Installs Zephyr SDK via west
 
 param(
-    [string]$SdkVersion = "0.17.4",
     [string]$WorkspaceName = "ZWS"
 )
 
@@ -16,16 +15,4 @@ Set-Location $zephyrPath
 
 Write-Host "Installing Zephyr SDK..."
 west sdk install
-
-# If manual install needed, uncomment below
-# $sdkUrl = "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v$SdkVersion/zephyr-sdk-${SdkVersion}_windows-x86_64.7z"
-# $sdkPath = "$env:USERPROFILE\.local\zephyr-sdk\$SdkVersion"
-# if (!(Test-Path $sdkPath)) {
-#     Write-Host "Downloading SDK..."
-#     Invoke-WebRequest -Uri $sdkUrl -OutFile "zephyr-sdk.7z"
-#     7z x zephyr-sdk.7z -o"$env:USERPROFILE\.local\zephyr-sdk"
-#     Set-Location "$env:USERPROFILE\.local\zephyr-sdk\$SdkVersion"
-#     .\setup.cmd
-# }
-
-Write-Host "SDK installed."
+Write-Host "SDK installed. If builds still detect an older SDK, clear ZEPHYR_SDK_INSTALL_DIR so Zephyr can use the registered SDK."
