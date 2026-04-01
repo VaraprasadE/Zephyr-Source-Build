@@ -54,14 +54,20 @@ Download and install from the [USBIPD releases page](https://github.com/dorssel/
 # List USB devices (run in PowerShell)
 usbipd list
 
+# Share device with WSL access (run in an elevated PowerShell)
+usbipd bind --busid <bus-id>
+
 # Attach device to WSL
-usbipd attach --wsl --busid=<bus-id>
+usbipd attach --wsl --busid <bus-id> --distribution Ubuntu-24.04
 ```
 
 **Example:**
 ```powershell
-usbipd attach --wsl --busid=2-4
+usbipd bind --busid 2-3
+usbipd attach --wsl --busid 2-3 --distribution Ubuntu-24.04
 ```
+
+`usbipd bind` is typically a one-time step and must be run as Administrator. `usbipd attach` may need to be repeated after a reboot or unplug/replug cycle.
 
 ---
 
