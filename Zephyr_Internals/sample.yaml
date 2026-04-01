@@ -1,0 +1,17 @@
+sample:
+  name: Zephyr Internals Demo
+tests:
+  app.zephyr_internals.kernel_demo:
+    tags:
+      - kernel
+      - threads
+      - queue
+      - semaphore
+      - mutex
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        - "Starting Zephyr internals demo"
+    integration_platforms:
+      - frdm_mcxn947/mcxn947/cpu0
