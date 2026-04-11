@@ -10,3 +10,6 @@ target_include_directories(
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+# External Info: You MUST add this line to inherit Zephyr's hardware compiler flags
+target_link_libraries(circular_buffer PRIVATE zephyr_interface)

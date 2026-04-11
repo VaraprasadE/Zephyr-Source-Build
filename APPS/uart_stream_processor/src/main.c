@@ -7,78 +7,128 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
-#include "circular_buffer.h"
 
-#include <string.h>
+#include "circular_buffer.h"
 
 /* change this to any other UART peripheral if desired */
 #define UART_DEVICE_NODE DT_CHOSEN(zephyr_shell_uart)
 
-#define MSG_SIZE 32
+#define FRAME_START_BYTE 'S'
+#define FRAME_END_BYTE 'E'
+#define FRAME_DATA_LENGTH 12U
+#define FRAME_LENGTH (FRAME_DATA_LENGTH + 2U)
 
-/* queue to store up to 10 messages (aligned to 4-byte boundary) */
-K_MSGQ_DEFINE(uart_msgq, MSG_SIZE, 10, 4);
+K_SEM_DEFINE(uart_data_ready, 0, CIRCULAR_BUFFER_SIZE);
 
 static const struct device *const uart_dev = DEVICE_DT_GET(UART_DEVICE_NODE);
-
-/* receive buffer used in UART ISR callback */
-static char rx_buf[MSG_SIZE];
-static int rx_buf_pos;
+static circular_buffer uart_rx_buffer;
+static uint8_t frame_buffer[FRAME_LENGTH];
+static size_t frame_pos;
+static bool frame_started;
+static uint32_t dropped_bytes;
 
 /*
- * Read characters from UART until line end is detected. Afterwards push the
- * data to the message queue.
+ * Read bytes from the UART FIFO and push them into the circular buffer.
+ * The ISR stays short by deferring frame parsing to thread context.
  */
 void serial_cb(const struct device *dev, void *user_data)
 {
 	uint8_t c;
+	ARG_UNUSED(user_data);
 
-	if (!uart_irq_update(uart_dev)) {
+	if (!uart_irq_update(dev)) {
 		return;
 	}
 
-	if (!uart_irq_rx_ready(uart_dev)) {
+	if (!uart_irq_rx_ready(dev)) {
 		return;
 	}
 
-	/* read until FIFO empty */
-	while (uart_fifo_read(uart_dev, &c, 1) == 1) {
-		if ((c == '\n' || c == '\r') && rx_buf_pos > 0) {
-			/* terminate string */
-			rx_buf[rx_buf_pos] = '\0';
-
-			/* if queue is full, message is silently dropped */
-			k_msgq_put(&uart_msgq, &rx_buf, K_NO_WAIT);
-
-			/* reset the buffer (it was copied to the msgq) */
-			rx_buf_pos = 0;
-		} else if (rx_buf_pos < (sizeof(rx_buf) - 1)) {
-			rx_buf[rx_buf_pos++] = c;
+	while (uart_fifo_read(dev, &c, 1) == 1) {
+		if (circular_buffer_push(&uart_rx_buffer, c)) {
+			k_sem_give(&uart_data_ready);
+		} else {
+			dropped_bytes++;
 		}
-		/* else: characters beyond buffer size are dropped */
 	}
 }
 
 /*
  * Print a null-terminated string character by character to the UART interface
  */
-void print_uart(char *buf)
+void print_uart(const char *buf)
 {
-	int msg_len = strlen(buf);
-
-	for (int i = 0; i < msg_len; i++) {
-		uart_poll_out(uart_dev, buf[i]);
+	while (*buf != '\0') {
+		uart_poll_out(uart_dev, *buf++);
 	}
+}
+
+static void print_frame(const uint8_t *frame)
+{
+	print_uart("Frame received: ");
+
+	for (size_t i = 0; i < FRAME_LENGTH; i++) {
+		uart_poll_out(uart_dev, frame[i]);
+	}
+
+	print_uart("\r\n");
+}
+
+static void reset_frame_state(void)
+{
+	frame_pos = 0U;
+	frame_started = false;
+}
+
+static void process_received_byte(uint8_t byte)
+{
+	if ((byte == '\r') || (byte == '\n')) {
+		return;
+	}
+
+	if (!frame_started) {
+		if (byte == FRAME_START_BYTE) {
+			frame_started = true;
+			frame_buffer[0] = byte;
+			frame_pos = 1U;
+		}
+
+		return;
+	}
+
+	if (byte == FRAME_START_BYTE) {
+		frame_buffer[0] = byte;
+		frame_pos = 1U;
+		print_uart("Resync on start byte\r\n");
+		return;
+	}
+
+	frame_buffer[frame_pos++] = byte;
+
+	if (frame_pos < FRAME_LENGTH) {
+		return;
+	}
+
+	if (frame_buffer[FRAME_LENGTH - 1U] == FRAME_END_BYTE) {
+		print_frame(frame_buffer);
+	} else {
+		print_uart("Invalid frame: missing end byte\r\n");
+	}
+
+	reset_frame_state();
 }
 
 int main(void)
 {
-	char tx_buf[MSG_SIZE];
+	uint8_t received_byte;
 
 	if (!device_is_ready(uart_dev)) {
 		printk("UART device not found!");
 		return 0;
 	}
+
+	circular_buffer_init(&uart_rx_buffer);
+	reset_frame_state();
 
 	/* configure interrupt and callback to receive data */
 	int ret = uart_irq_callback_user_data_set(uart_dev, serial_cb, NULL);
@@ -95,14 +145,21 @@ int main(void)
 	}
 	uart_irq_rx_enable(uart_dev);
 
-	print_uart("Hello! I'm your echo bot.\r\n");
-	print_uart("Tell me something and press enter:\r\n");
+	print_uart("UART frame parser ready\r\n");
+	print_uart("Expected frame: S + 12 data bytes + E\r\n");
 
-	/* indefinitely wait for input from the user */
-	while (k_msgq_get(&uart_msgq, &tx_buf, K_FOREVER) == 0) {
-		print_uart("Echo: ");
-		print_uart(tx_buf);
-		print_uart("\r\n");
+	while (1) {
+		k_sem_take(&uart_data_ready, K_FOREVER);
+
+		while (circular_buffer_pop(&uart_rx_buffer, &received_byte)) {
+			process_received_byte(received_byte);
+		}
+
+		if (dropped_bytes > 0U) {
+			print_uart("Warning: circular buffer overflow\r\n");
+			dropped_bytes = 0U;
+		}
 	}
+
 	return 0;
 }
