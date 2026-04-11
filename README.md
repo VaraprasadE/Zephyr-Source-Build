@@ -57,6 +57,16 @@ For development in VSCode with MCUExpresso IDE:
 - Use the same ZWS workspace and import the projects into MCUExpresso.
 - Leave `ZEPHYR_SDK_INSTALL_DIR` unset unless you intentionally need to override Zephyr's SDK auto-detection.
 
+### Custom Application Notes
+
+The repository also contains custom Zephyr applications under `APPS/`.
+
+| Application | Description |
+|-------------|-------------|
+| `APPS/uart_stream_processor` | UART receive and multi-threaded stream-processing application plan with ISR, circular buffering, semaphore signaling, static memory pool usage, and staged task-based processing. |
+
+See `APPS/uart_stream_processor/README.rst` for the current architecture plan and implementation intent.
+
 ---
 
 <a id="linux-setup"></a>
