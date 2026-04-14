@@ -134,6 +134,40 @@ The design intentionally separates responsibilities so that:
 * ownership of packet buffers is explicit, and
 * final output does not block time-sensitive receive logic.
 
+Static Memory Pool Library
+**************************
+
+The application now includes a reusable static node-pool library in
+``lib/include/static_memory_pool.h`` and ``lib/src/static_memory_pool.c``.
+
+The intended ownership flow is:
+
+.. code-block:: text
+
+   Parser Task
+      |
+      v
+   static_memory_pool_acquire()
+      |
+      v
+   Fill node->data and node->length
+      |
+      v
+   Send node pointer through queue
+      |
+      v
+   Processing Task
+      |
+      v
+   static_memory_pool_release()
+
+The helper API also provides:
+
+* ``static_memory_pool_add_node()`` to append a node to a linked list.
+* ``static_memory_pool_insert_node()`` to insert at the head or after a node.
+* ``static_memory_pool_remove_node()`` to unlink a node from a list.
+* ``static_memory_pool_delete_node()`` to unlink and return a node to the pool.
+
 This makes the application easier to extend with protocol decoding, packet
 validation, telemetry, and alternate output backends.
 

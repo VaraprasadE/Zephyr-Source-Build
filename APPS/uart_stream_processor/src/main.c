@@ -7,8 +7,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
+#include <string.h>
 
 #include "circular_buffer.h"
+#include "static_memory_pool.h"
 
 /* change this to any other UART peripheral if desired */
 #define UART_DEVICE_NODE DT_CHOSEN(zephyr_shell_uart)
@@ -18,14 +20,32 @@
 #define FRAME_DATA_LENGTH 12U
 #define FRAME_LENGTH (FRAME_DATA_LENGTH + 2U)
 
+#define PARSER_THREAD_STACK_SIZE 1024U
+#define PROCESSING_THREAD_STACK_SIZE 1024U
+#define PARSER_THREAD_PRIORITY 5
+#define PROCESSING_THREAD_PRIORITY 5
+
+BUILD_ASSERT(FRAME_LENGTH <= STATIC_MEMORY_POOL_DATA_SIZE,
+	"FRAME_LENGTH must fit in static memory pool node data");
+
 K_SEM_DEFINE(uart_data_ready, 0, CIRCULAR_BUFFER_SIZE);
+K_MSGQ_DEFINE(frame_queue, sizeof(static_pool_node *), STATIC_MEMORY_POOL_CAPACITY, 4);
 
 static const struct device *const uart_dev = DEVICE_DT_GET(UART_DEVICE_NODE);
 static circular_buffer uart_rx_buffer;
+static static_memory_pool frame_pool;
 static uint8_t frame_buffer[FRAME_LENGTH];
 static size_t frame_pos;
 static bool frame_started;
 static uint32_t dropped_bytes;
+static uint32_t dropped_frames;
+static uint32_t queue_failures;
+
+K_THREAD_STACK_DEFINE(parser_thread_stack, PARSER_THREAD_STACK_SIZE);
+K_THREAD_STACK_DEFINE(processing_thread_stack, PROCESSING_THREAD_STACK_SIZE);
+
+static struct k_thread parser_thread_data;
+static struct k_thread processing_thread_data;
 
 /*
  * Read bytes from the UART FIFO and push them into the circular buffer.
@@ -74,6 +94,32 @@ static void print_frame(const uint8_t *frame)
 	print_uart("\r\n");
 }
 
+static bool queue_completed_frame(void)
+{
+	static_pool_node *node;
+	int ret;
+
+	node = static_memory_pool_acquire(&frame_pool);
+	if (node == NULL) {
+		dropped_frames++;
+		print_uart("Frame dropped: memory pool empty\r\n");
+		return false;
+	}
+
+	memcpy(node->data, frame_buffer, FRAME_LENGTH);
+	node->length = FRAME_LENGTH;
+
+	ret = k_msgq_put(&frame_queue, &node, K_NO_WAIT);
+	if (ret != 0) {
+		queue_failures++;
+		(void)static_memory_pool_release(&frame_pool, node);
+		print_uart("Frame dropped: queue full\r\n");
+		return false;
+	}
+
+	return true;
+}
+
 static void reset_frame_state(void)
 {
 	frame_pos = 0U;
@@ -110,7 +156,7 @@ static void process_received_byte(uint8_t byte)
 	}
 
 	if (frame_buffer[FRAME_LENGTH - 1U] == FRAME_END_BYTE) {
-		print_frame(frame_buffer);
+		(void)queue_completed_frame();
 	} else {
 		print_uart("Invalid frame: missing end byte\r\n");
 	}
@@ -118,9 +164,54 @@ static void process_received_byte(uint8_t byte)
 	reset_frame_state();
 }
 
-int main(void)
+static void parser_thread(void *arg1, void *arg2, void *arg3)
 {
 	uint8_t received_byte;
+
+	ARG_UNUSED(arg1);
+	ARG_UNUSED(arg2);
+	ARG_UNUSED(arg3);
+
+	while (1) {
+		k_sem_take(&uart_data_ready, K_FOREVER);
+
+		while (circular_buffer_pop(&uart_rx_buffer, &received_byte)) {
+			process_received_byte(received_byte);
+		}
+
+		if (dropped_bytes > 0U) {
+			print_uart("Warning: circular buffer overflow\r\n");
+			dropped_bytes = 0U;
+		}
+	}
+}
+
+static void processing_thread(void *arg1, void *arg2, void *arg3)
+{
+	static_pool_node *node;
+	int ret;
+
+	ARG_UNUSED(arg1);
+	ARG_UNUSED(arg2);
+	ARG_UNUSED(arg3);
+
+	while (1) {
+		ret = k_msgq_get(&frame_queue, &node, K_FOREVER);
+		if (ret != 0) {
+			continue;
+		}
+
+		print_frame(node->data);
+
+		if (!static_memory_pool_release(&frame_pool, node)) {
+			print_uart("Error: failed to release node to pool\r\n");
+		}
+	}
+}
+
+int main(void)
+{
+	int ret;
 
 	if (!device_is_ready(uart_dev)) {
 		printk("UART device not found!");
@@ -128,10 +219,36 @@ int main(void)
 	}
 
 	circular_buffer_init(&uart_rx_buffer);
+	static_memory_pool_init(&frame_pool);
 	reset_frame_state();
+	dropped_bytes = 0U;
+	dropped_frames = 0U;
+	queue_failures = 0U;
+
+	k_thread_create(&parser_thread_data,
+				parser_thread_stack,
+				K_THREAD_STACK_SIZEOF(parser_thread_stack),
+				parser_thread,
+				NULL,
+				NULL,
+				NULL,
+				PARSER_THREAD_PRIORITY,
+				0,
+				K_NO_WAIT);
+
+	k_thread_create(&processing_thread_data,
+				processing_thread_stack,
+				K_THREAD_STACK_SIZEOF(processing_thread_stack),
+				processing_thread,
+				NULL,
+				NULL,
+				NULL,
+				PROCESSING_THREAD_PRIORITY,
+				0,
+				K_NO_WAIT);
 
 	/* configure interrupt and callback to receive data */
-	int ret = uart_irq_callback_user_data_set(uart_dev, serial_cb, NULL);
+	ret = uart_irq_callback_user_data_set(uart_dev, serial_cb, NULL);
 
 	if (ret < 0) {
 		if (ret == -ENOTSUP) {
@@ -147,18 +264,20 @@ int main(void)
 
 	print_uart("UART frame parser ready\r\n");
 	print_uart("Expected frame: S + 12 data bytes + E\r\n");
+	print_uart("Parser task -> pool -> message queue -> processing task\r\n");
 
 	while (1) {
-		k_sem_take(&uart_data_ready, K_FOREVER);
-
-		while (circular_buffer_pop(&uart_rx_buffer, &received_byte)) {
-			process_received_byte(received_byte);
+		if (dropped_frames > 0U) {
+			print_uart("Warning: frame dropped due to empty pool\r\n");
+			dropped_frames = 0U;
 		}
 
-		if (dropped_bytes > 0U) {
-			print_uart("Warning: circular buffer overflow\r\n");
-			dropped_bytes = 0U;
+		if (queue_failures > 0U) {
+			print_uart("Warning: frame queue overflow\r\n");
+			queue_failures = 0U;
 		}
+
+		k_sleep(K_MSEC(250));
 	}
 
 	return 0;

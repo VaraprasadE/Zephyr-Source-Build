@@ -9,3 +9,4 @@ add_subdirectory(lib)
 
 target_sources(app PRIVATE src/main.c)
 target_link_libraries(app PRIVATE circular_buffer)
+target_link_libraries(app PRIVATE static_memory_pool)
